@@ -37,20 +37,39 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
     //checks if symbol already exists in the table
     int existingIdx = ST_lookup(id, scope);
     if (existingIdx != -1) {
+        printf("error: multiply declared identifier %s\n", id);
         return existingIdx;
     }
     //computes hash key
     int idx = hash((unsigned char*)key);
 
+    while (current_scope->strTable[idx] != NULL) {
+       idx = (idx + 1) % MAXIDS;
+    }
+
+    //assign values
+    symEntry* e = malloc(sizeof(symEntry));
+    e->id = strdup(id);
+    e->scope = strdup(scope);
+    e->data_type = data_type;
+    e->symbol_type = symobl_type;
+    e->size = 0;
+    e->params = NULL;
+
+    current_scope->strTable[idx] = e;
+    
+    /*
     while (strTable[idx].id != NULL) {
         idx = (idx + 1) % MAXIDS;
     }
     //copy data and return index of the table
+    
     strTable[idx].id = strdup(id);
     strTable[idx].scope = strdup(scope);
     strTable[idx].data_type = data_type;
     strTable[idx].symbol_type = symbol_type;
-
+    */
+   
     return idx;
 }
 
