@@ -116,3 +116,8 @@ void output_entry(int i){
   printf("%s:%s%s\n",
     strTable[i].scope, strTable[i].id, symbolTypeStr[strTable[i].symbol_type]);
 }
+
+void new_scope() {
+   table_node* node = malloc(sizeof(table_node));
+ 
+}
