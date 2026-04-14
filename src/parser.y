@@ -15,18 +15,6 @@ int yyerror(char *msg);
 typedef struct treenode tree;
 extern tree *ast;
 
-enum nodeTypes {
-    PROGRAM, DECLLIST, DECL, VARDECL, TYPESPEC, FUNDECL,
-    FORMALDECLLIST, FORMALDECL, FUNBODY, LOCALDECLLIST,
-    STATEMENTLIST, STATEMENT, COMPOUNDSTMT, ASSIGNSTMT,
-    CONDSTMT, LOOPSTMT, RETURNSTMT, EXPRESSION, RELOP,
-    ADDEXPR, ADDOP, TERM, MULOP, FACTOR, FUNCCALLEXPR,
-    ARGLIST, INTEGER, IDENTIFIER, VAR, ARRAYDECL, CHAR,
-    FUNCTYPENAME
-};
-
-enum opType {ADD, SUB, MUL, DIV, LT, LTE, EQ, GTE, GT, NEQ};
-
 /* nodeTypes refer to different types of internal and external nodes
   that can be part of the abstract syntax tree.
   */
@@ -182,18 +170,15 @@ funDecl
 typeSpec
     : INT
       {
-          $$ = maketreeWithName(TYPESPEC, "int");
-          $$->val = INT_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, INT_TYPE);
       }
     | CHAR
       {
-          $$ = maketreeWithName(TYPESPEC, "char");
-          $$->val = CHAR_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, CHAR_TYPE);
       }
     | VOID
       {
-          $$ = maketreeWithName(TYPESPEC, "void");
-          $$->val = VOID_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, VOID_TYPE);
       }
     ;
 
@@ -576,8 +561,8 @@ factor
 var
     : ID
       {
-          int valID = ST_lookup($1, scope);
-          if (valID < 0) {
+           symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
               yywarning("undeclared symbol");
           }
           $$ = maketree(VAR);
@@ -585,8 +570,8 @@ var
       }
     | ID LBRACKET expression RBRACKET
       {
-          int valID = ST_lookup($1, scope);
-          if (valID < 0) {
+           symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
               yywarning("undeclared symbol");
           }
           $$ = maketree(VAR);
@@ -597,10 +582,10 @@ var
 funCallExpr
             : ID LPARENTHESIS argListOpt RPARENTHESIS
 {
-  int valID = ST_lookup($1, "");
-  if(valID < 0){
-    yywarning("undeclared symbol");
-  }
+  symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
+              yywarning("undeclared symbol");
+          }
   $$ = maketree(FUNCCALLEXPR);
   addChild($$, maketreeWithName(IDENTIFIER, $1));
   addChild($$, $3);

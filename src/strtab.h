@@ -38,7 +38,7 @@ table_node* current_scope = NULL; // A global variable that should point to the 
 
 
 /* Inserts a symbol into the current symbol table tree. Please note that this function is used to instead into the tree of symbol tables and NOT the AST. Start at the returned hash and probe until we find an empty slot or the id.  */
-int ST_insert(char *id, int data_type, int symbol_type, int* scope);
+int ST_insert(char *id, char *scope, int data_type, int symbol_type);
 
 /* The function for looking up if a symbol exists in the current_scope. Always start looking for the symbol from the node that is being pointed to by the current_scope variable*/
 symEntry* ST_lookup(char *id);

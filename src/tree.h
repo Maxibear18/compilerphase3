@@ -5,6 +5,16 @@
 
 typedef struct treenode tree;
 
+enum nodeTypes {PROGRAM, DECLLIST, DECL, VARDECL, TYPESPEC, FUNDECL,
+                FORMALDECLLIST, FORMALDECL, FUNBODY, LOCALDECLLIST,
+                STATEMENTLIST, STATEMENT, COMPOUNDSTMT, ASSIGNSTMT,
+                CONDSTMT, LOOPSTMT, RETURNSTMT, EXPRESSION, RELOP,
+                ADDEXPR, ADDOP, TERM, MULOP, FACTOR, FUNCCALLEXPR,
+                ARGLIST, INTEGER, IDENTIFIER, VAR, ARRAYDECL, CHAR_NODE,
+                FUNCTYPENAME};
+
+enum opType {ADD, SUB, MUL, DIV, LT, LTE, OP_EQ, GTE, GT, OP_NEQ};
+
 /* tree node - you may want to add more fields */
 struct treenode {
       int nodeKind;
