@@ -35,36 +35,36 @@ yylineno = 1;
  /* rules */
 
  /* Keywords */;
-"if"            {updateCol(); return KWD_IF;}
-"else"          {updateCol(); return KWD_ELSE;}
-"while"         {updateCol(); return KWD_WHILE;}
-"int"           {updateCol(); return KWD_INT;}
-"char"          {updateCol(); return KWD_CHAR;}
-"return"        {updateCol(); return KWD_RETURN;}
-"void"          {updateCol(); return KWD_VOID;}
+"if"            {updateCol(); return IF;}
+"else"          {updateCol(); return ELSE;}
+"while"         {updateCol(); return WHILE;}
+"int"           {updateCol(); return INT;}
+"char"          {updateCol(); return CHAR;}
+"return"        {updateCol(); return RETURN;}
+"void"          {updateCol(); return VOID;}
 
  /* Operators */;
-\+              {updateCol(); return OPER_ADD;}
-\-              {updateCol(); return OPER_SUB;}
-\*              {updateCol(); return OPER_MUL;}
-\/              {updateCol(); return OPER_DIV;}
-\<=             {updateCol(); return OPER_LTE;}
-\>=             {updateCol(); return OPER_GTE;}
-\<              {updateCol(); return OPER_LT;}
-\>              {updateCol(); return OPER_GT;}
-==              {updateCol(); return OPER_EQ;}
-!=              {updateCol(); return OPER_NEQ;}
-=               {updateCol(); return OPER_ASGN;}
+\+              {updateCol(); return PLUS;}
+\-              {updateCol(); return MINUS;}
+\*              {updateCol(); return MULT;}
+\/              {updateCol(); return DIVIDE;}
+\<=             {updateCol(); return LESSTHANEQ;}
+\>=             {updateCol(); return GREATERTHANEQ;}
+\<              {updateCol(); return LESSTHAN;}
+\>              {updateCol(); return GREATERTHAN;}
+==              {updateCol(); return EQ;}
+!=              {updateCol(); return NEQ;}
+=               {updateCol(); return ASSIGN;}
 
  /* Punctuation */;
-\[              {updateCol(); return LSQ_BRKT;}
-\]              {updateCol(); return RSQ_BRKT;}
-\{              {updateCol(); return LCRLY_BRKT;}
-\}              {updateCol(); return RCRLY_BRKT;}
-\(              {updateCol(); return LPAREN;}
-\)              {updateCol(); return RPAREN;}
+\[              {updateCol(); return LBRACKET;}
+\]              {updateCol(); return RBRACKET;}
+\{              {updateCol(); return LBRACE;}
+\}              {updateCol(); return RBRACE;}
+\(              {updateCol(); return LPARENTHESIS;}
+\)              {updateCol(); return RPARENTHESIS;}
 ,               {updateCol(); return COMMA;}
-;               {updateCol(); return SEMICLN;}
+;               {updateCol(); return SEMICOLON;}
 
  /* Identifiers */;
 {identifier}    {updateCol();
