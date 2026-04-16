@@ -6,6 +6,8 @@
 const char *dataTypeStr[3] = {"int", "char", "void"};
 const char *symbolTypeStr[3] = {"", "[]", "()"};
 
+table_node* current_scope = NULL;
+
 /* The symbolTable, which will be implemented as a hash table
   */
 struct strEntry strTable[MAXIDS];
@@ -73,7 +75,7 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
     return idx;
 }
 
-int ST_lookup(char *id, char *scope) {
+symEntry* ST_lookup(char *id, char *scope) {
   // TODO: Concatenate the scope and id and use that to create the hash key
 
   /* TODO: Use the hash value to check if the index position has the "id".
@@ -119,5 +121,9 @@ void output_entry(int i){
 
 void new_scope() {
    table_node* node = malloc(sizeof(table_node));
- 
+   for (int i = 0; i < MAXIDS; i++) {
+      node->strTable[i] = NULL;
+   }
+   node->parent = current_scope;
+   current_scope = node;
 }
