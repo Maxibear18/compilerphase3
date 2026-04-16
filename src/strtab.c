@@ -7,6 +7,8 @@ const char *dataTypeStr[3] = {"int", "char", "void"};
 const char *symbolTypeStr[3] = {"", "[]", "()"};
 
 table_node* current_scope = NULL;
+param *working_list_head = NULL;
+param *working_list_end = NULL;
 
 /* The symbolTable, which will be implemented as a hash table
   */
@@ -50,15 +52,15 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
     }
 
     //assign values
-    symEntry* e = malloc(sizeof(symEntry));
-    e->id = strdup(id);
-    e->scope = strdup(scope);
-    e->data_type = data_type;
-    e->symbol_type = symobl_type;
-    e->size = 0;
-    e->params = NULL;
+    symEntry* entry = malloc(sizeof(symEntry));
+    entry->id = strdup(id);
+    entry->scope = strdup(scope);
+    entry->data_type = data_type;
+    entry->symbol_type = symobl_type;
+    entry->size = 0;
+    entry->params = NULL;
 
-    current_scope->strTable[idx] = e;
+    current_scope->strTable[idx] = entry;
     
     /*
     while (strTable[idx].id != NULL) {
@@ -84,6 +86,7 @@ symEntry* ST_lookup(char *id, char *scope) {
     If you arrive at an empty spot, that means "id" is not there.
     Then return -1.
     */
+   /*
    char key[256];
    snprintf(key, sizeof(key), "%s:%s", scope, id);
    int h = hash((unsigned char*)key);
@@ -111,6 +114,21 @@ symEntry* ST_lookup(char *id, char *scope) {
       }
     }
     return -1;
+    */
+   //OLD CODE ABOVE THIS
+
+   table_node* scope = current_scope;
+
+   while (scope != NULL) {
+      for (int i = 0; i < MAXIDS; i++) {
+         if (scope->strTable[i] != NULL && strcmp(scope->strTable[i]->id, id) == 0) {
+            return scope->strTable[i];
+         }
+      }
+      scope = scope->parent;
+   }
+
+   return NULL;
 }
 
 void output_entry(int i){
@@ -131,5 +149,21 @@ void new_scope() {
 void up_scope() {
    if (current_scope != NULL) {
       current_scope = current_scope->parent
+   }
+}
+
+void add_param(int data_type, int symbol_type) {
+   param* parameter = malloc(sizeof(param));
+   parameter->data_type = data_type;
+   paramter->symbol_type = symbol_type;
+   parameter->next = NULL;
+
+   if (working_list_head == NULL) {
+      working_list_head = parameter;
+      working_list_end = parameter;
+   }
+   else {
+      working_list_end->next = parameter;
+      working_list_end = parameter;
    }
 }
