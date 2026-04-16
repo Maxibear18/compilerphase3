@@ -127,3 +127,9 @@ void new_scope() {
    node->parent = current_scope;
    current_scope = node;
 }
+
+void up_scope() {
+   if (current_scope != NULL) {
+      current_scope = current_scope->parent
+   }
+}
