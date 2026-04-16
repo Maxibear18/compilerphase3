@@ -15,18 +15,6 @@ int yyerror(char *msg);
 typedef struct treenode tree;
 extern tree *ast;
 
-enum nodeTypes {
-    PROGRAM, DECLLIST, DECL, VARDECL, TYPESPEC, FUNDECL,
-    FORMALDECLLIST, FORMALDECL, FUNBODY, LOCALDECLLIST,
-    STATEMENTLIST, STATEMENT, COMPOUNDSTMT, ASSIGNSTMT,
-    CONDSTMT, LOOPSTMT, RETURNSTMT, EXPRESSION, RELOP,
-    ADDEXPR, ADDOP, TERM, MULOP, FACTOR, FUNCCALLEXPR,
-    ARGLIST, INTEGER, IDENTIFIER, VAR, ARRAYDECL, CHAR,
-    FUNCTYPENAME
-};
-
-enum opType {ADD, SUB, MUL, DIV, LT, LTE, EQ, GTE, GT, NEQ};
-
 /* nodeTypes refer to different types of internal and external nodes
   that can be part of the abstract syntax tree.
   */
@@ -49,7 +37,13 @@ enum opType {ADD, SUB, MUL, DIV, LT, LTE, EQ, GTE, GT, NEQ};
   As long as the directory structure is correct and the file names are correct,
     we are okay with it.
   */
-char* scope = "";
+static int global_scope_marker = 0;
+static int function_scope_markers[1024];
+static int function_scope_count = 0;
+static int *current_scope = &global_scope_marker;
+static int funID;
+static int param_count = 0;
+static int current_fun_ind = -1;
 %}
 
 /* the union describes the fields available in the yylval variable */
@@ -102,7 +96,6 @@ char* scope = "";
 %type <node> compoundStmt assignStmt condStmt loopStmt returnStmt
 %type <node> expression relop addExpr addop term mulop factor
 %type <node> var funCallExpr argList argListOpt
-%type <node> matchedStmt unmatchedStmt
 
 %start program
 
@@ -158,9 +151,10 @@ decl
 funDecl
     : typeSpec ID
       {
-        int funID = ST_insert($2, "", $1->val, FUNCTION);
-        (void)funID;
-        scope = $2;
+        funID = ST_insert($2, $1->val, FUNCTION, current_scope);
+        current_fun_ind = funID;
+        param_count = 0;
+        current_scope = &function_scope_markers[function_scope_count++];
       }
       LPARENTHESIS formalDeclListOpt RPARENTHESIS funBody
       {
@@ -169,52 +163,49 @@ funDecl
 
         tree *funcTypeNode = maketree(FUNCTYPENAME);
         addChild(funcTypeNode, $1);
-        addChild(funcTypeNode, maketreeWithName(IDENTIFIER, $2));
+        addChild(funcTypeNode, maketreeWithVal(IDENTIFIER, funID));
         addChild($$, funcTypeNode);
 
         if ($5) addChild($$, $5);
         if ($7) addChild($$, $7);
 
-        scope = "";
+        connect_params(current_fun_ind, param_count);
+        current_scope = &global_scope_marker;
       }
     ;
 
 typeSpec
     : INT
       {
-          $$ = maketreeWithName(TYPESPEC, "int");
-          $$->val = INT_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, INT_TYPE);
       }
     | CHAR
       {
-          $$ = maketreeWithName(TYPESPEC, "char");
-          $$->val = CHAR_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, CHAR_NODE);
       }
     | VOID
       {
-          $$ = maketreeWithName(TYPESPEC, "void");
-          $$->val = VOID_TYPE;
+          $$ = maketreeWithVal(TYPESPEC, VOID_TYPE);
       }
     ;
 
 varDecl
     : typeSpec ID SEMICOLON
       {
-          int valID = ST_insert($2, scope, $1->val, SCALAR);
-          (void)valID;
+          int valID = ST_insert($2, $1->val, SCALAR, current_scope);
 
           $$ = maketree(VARDECL);
+          /*symEntry *entry = ST_lookup($1);*/
           addChild($$, $1);
-          addChild($$, maketreeWithName(IDENTIFIER, $2));
+          addChild($$, maketreeWithVal(IDENTIFIER, valID));
       }
     | typeSpec ID LBRACKET INTCONST RBRACKET SEMICOLON
       {
-          int valID = ST_insert($2, scope, $1->val, ARRAY);
-          (void)valID;
+          int valID = ST_insert($2,$1->val, ARRAY,current_scope);
 
           $$ = maketree(VARDECL);
           addChild($$, $1);
-          addChild($$, maketreeWithName(IDENTIFIER, $2));
+          addChild($$, maketreeWithVal(IDENTIFIER, valID));
           addChild($$, maketreeWithVal(INTEGER, $4));
       }
     ;
@@ -245,21 +236,18 @@ formalDeclList:
 formalDecl
     : typeSpec ID
       {
-          int valID = ST_insert($2, scope, $1->val, SCALAR);
-          (void)valID;
-
+          int valID = ST_insert($2, $1->val, SCALAR, current_scope);
           $$ = maketree(FORMALDECL);
           addChild($$, $1);
-          addChild($$, maketreeWithName(IDENTIFIER, $2));
+          addChild($$, maketreeWithVal(IDENTIFIER, valID));
       }
     | typeSpec ID LBRACKET RBRACKET
       {
-          int valID = ST_insert($2, scope, $1->val, ARRAY);
-          (void)valID;
+          int valID = ST_insert($2, $1->val, ARRAY, current_scope);
 
           $$ = maketree(FORMALDECL);
           addChild($$, $1);
-          addChild($$, maketreeWithName(IDENTIFIER, $2));
+          addChild($$, maketreeWithVal(IDENTIFIER, valID));
           addChild($$, maketree(ARRAYDECL));
       }
     ;
@@ -518,11 +506,11 @@ addExpr
 addop
       : PLUS
       {
-        $$ = maketreeWithOp(ADDOP, '+');
+        $$ = maketreeWithVal(ADDOP, ADD);
       }
       | MINUS
       {
-        $$ = maketreeWithOp(ADDOP, '-');
+        $$ = maketreeWithVal(ADDOP, SUB);
       };
 
 term
@@ -543,11 +531,11 @@ term
 mulop
       : MULT
       {
-        $$ = maketreeWithOp(MULOP, '*');
+        $$ = maketreeWithVal(MULOP, MUL);
       }
       | DIVIDE
       {
-        $$ = maketreeWithOp(MULOP, '/');
+        $$ = maketreeWithVal(MULOP, DIV);
       };
 
 factor
@@ -576,33 +564,33 @@ factor
 var
     : ID
       {
-          int valID = ST_lookup($1, scope);
-          if (valID < 0) {
-              yywarning("undeclared symbol");
+          symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
+            yywarning("undeclared symbol");
           }
           $$ = maketree(VAR);
-          addChild($$, maketreeWithName(IDENTIFIER, $1));
+          addChild($$, maketreeWithVal(IDENTIFIER, -1));
       }
     | ID LBRACKET expression RBRACKET
       {
-          int valID = ST_lookup($1, scope);
-          if (valID < 0) {
-              yywarning("undeclared symbol");
+          symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
+            yywarning("undeclared symbol");
           }
           $$ = maketree(VAR);
-          addChild($$, maketreeWithName(IDENTIFIER, $1));
+          addChild($$, maketreeWithVal(IDENTIFIER, -1));
           addChild($$, $3);
       };
 
 funCallExpr
             : ID LPARENTHESIS argListOpt RPARENTHESIS
 {
-  int valID = ST_lookup($1, "");
-  if(valID < 0){
-    yywarning("undeclared symbol");
-  }
+  symEntry *entry = ST_lookup($1);
+          if (entry == NULL) {
+            yywarning("undeclared symbol");
+          }
   $$ = maketree(FUNCCALLEXPR);
-  addChild($$, maketreeWithName(IDENTIFIER, $1));
+  addChild($$, maketreeWithVal(IDENTIFIER, -1));
   addChild($$, $3);
 };
 
