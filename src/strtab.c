@@ -24,7 +24,7 @@ int hash(unsigned char *str) {
   return hash % MAXIDS; // MAXIDS defined in strtab.h
 }
 
-int ST_insert(char *id, char *scope, int data_type, int symbol_type){
+int ST_insert(char *id, int data_type, int symbol_type, int *scope){
   // TODO: Concatenate the scope and id and use that to create the hash key
 
   /* TODO: Use ST_lookup to check if the id is already in the symbol table.
@@ -36,16 +36,22 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
     Then return that index.
     */
     //stores key and formats it as scope:id
-    char key[256];
-    snprintf(key, sizeof(key), "%s:%s", scope, id);
+    (void)scope;
+    if(current_scope == NULL){
+      return -1;
+    }
     //checks if symbol already exists in the table
-    int existingIdx = ST_lookup(id, scope);
-    if (existingIdx != -1) {
-        printf("error: multiply declared identifier %s\n", id);
-        return existingIdx;
+    for(int i = 0; i < MAXIDS; i++)
+    {
+      symEntry *e = current_scope->strTable[i];
+      if(e != NULL && strcmp(e->id,id) ==0)
+      {
+         printf("Error: multiply declared identifier %s\n", id);
+         return i;
+      }
     }
     //computes hash key
-    int idx = hash((unsigned char*)key);
+    int idx = hash((unsigned char*)id);
 
     while (current_scope->strTable[idx] != NULL) {
        idx = (idx + 1) % MAXIDS;
@@ -53,10 +59,13 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
 
     //assign values
     symEntry* entry = malloc(sizeof(symEntry));
+    if(entry == NULL){
+      return -1;
+    }
     entry->id = strdup(id);
-    entry->scope = strdup(scope);
+    entry->scope = strdup("");
     entry->data_type = data_type;
-    entry->symbol_type = symobl_type;
+    entry->symbol_type = symbol_type;
     entry->size = 0;
     entry->params = NULL;
 
@@ -77,7 +86,7 @@ int ST_insert(char *id, char *scope, int data_type, int symbol_type){
     return idx;
 }
 
-symEntry* ST_lookup(char *id, char *scope) {
+symEntry* ST_lookup(char *id) {
   // TODO: Concatenate the scope and id and use that to create the hash key
 
   /* TODO: Use the hash value to check if the index position has the "id".
@@ -117,15 +126,15 @@ symEntry* ST_lookup(char *id, char *scope) {
     */
    //OLD CODE ABOVE THIS
 
-   table_node* scope = current_scope;
+   table_node* node = current_scope;
 
-   while (scope != NULL) {
+   while (node != NULL) {
       for (int i = 0; i < MAXIDS; i++) {
-         if (scope->strTable[i] != NULL && strcmp(scope->strTable[i]->id, id) == 0) {
-            return scope->strTable[i];
+         if (node->strTable[i] != NULL && strcmp(node->strTable[i]->id, id) == 0) {
+            return node->strTable[i];
          }
       }
-      scope = scope->parent;
+      node = node->parent;
    }
 
    return NULL;
@@ -148,14 +157,14 @@ void new_scope() {
 
 void up_scope() {
    if (current_scope != NULL) {
-      current_scope = current_scope->parent
+      current_scope = current_scope->parent;
    }
 }
 
 void add_param(int data_type, int symbol_type) {
    param* parameter = malloc(sizeof(param));
    parameter->data_type = data_type;
-   paramter->symbol_type = symbol_type;
+   parameter->symbol_type = symbol_type;
    parameter->next = NULL;
 
    if (working_list_head == NULL) {
@@ -182,6 +191,25 @@ void connect_params(int index, int num_params) {
    func->params = working_list_head;
    func->size = num_params;
 
-   working_list_head = NULL:
-   working_list_end = NULL:
+   working_list_head = NULL;
+   working_list_end = NULL;
+}
+
+static void print_scope(table_node *node, int depth) {
+    if (node == NULL) return;
+
+    for (int i = 0; i < MAXIDS; i++) {
+        symEntry *e = node->strTable[i];
+        if (e != NULL) {
+            for (int j = 0; j < depth; j++) printf("  ");
+            printf("%s : %d %d %s\n", e->id, e->data_type, e->symbol_type, e->scope);
+        }
+    }
+
+    print_scope(node->first_child, depth + 1);
+    print_scope(node->next, depth);
+}
+
+void print_sym_tab(void) {
+    print_scope(current_scope, 0);
 }
