@@ -1,6 +1,6 @@
 
 /* definitions */
-
+%option debug
 %{
 #include <stdio.h>
 #include <stdlib.h>
@@ -25,13 +25,13 @@ int processString();
 
 %}
 
-newline         (\r?\n)
+newline         (\r\n|\r|\n)
 whitespace      [\t ]+
 integer         0|[1-9][0-9]*
 integerlead0    0[0-9]+
 character       [^"\\\n]
 charconst       \'([^\'\\\n]|\\[nt\"\\\'])\'
-letter          [a-z]|[A-Z]
+letter          [A-Za-z]
 escape          \\.
 
  /* String can contain any characters between the double quotes */
@@ -109,7 +109,7 @@ int yylineno = 1;
 {integerlead0}    { updateCol(); return ILLEGAL_TOK; }
 {newline}         { countLines(); }
 {whitespace}      { updateCol(); }
-{charconst}       { updateCol(); return CHARCONST;}
+{charconst}       { updateCol(); yylval.value = yytext[1]; return CHARCONST;}
 {string}          { return processString(); }
 {untermstring} {
     int startCol  = scancol;

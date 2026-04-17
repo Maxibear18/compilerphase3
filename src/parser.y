@@ -40,6 +40,7 @@ extern tree *ast;
 static int funID;
 static int param_count = 0;
 static int current_fun_ind = -1;
+extern table_node *current_scope;
 static int exists_in_current_scope(const char *id) {
     if (current_scope == NULL) return 0;
 
@@ -54,8 +55,8 @@ static int exists_in_current_scope(const char *id) {
 static int count_args(tree *n) {
     if (n == NULL) return 0;
     if (n->nodeKind != ARGLIST) return 1;
-    if (n->numChildren == 1) return count_args(n->childeren[0]);
-    if (n->numChildren == 2) return count_args(n->childeren[0]) + count_args(n->childeren[1]);
+    if (n->numChildren == 1) return count_args(n->children[0]);
+    if (n->numChildren == 2) return count_args(n->children[0]) + count_args(n->children[1]);
     return 0;
 }
 static int args_match(tree *a, param *p) {
@@ -66,13 +67,13 @@ static int args_match(tree *a, param *p) {
     }
 
     if (a->numChildren == 1) {
-        tree *expr = a->childeren[0];
+        tree *expr = a->children[0];
         return expr != NULL && expr->val == p->data_type;
     }
 
     if(a->numChildren == 2) {
-      tree *left = a->childeren[0];
-      tree *right = a->childeren[1];
+      tree *left = a->children[0];
+      tree *right = a->children[1];
 
       int left_c = count_args(left);
       param *q = p;
@@ -83,7 +84,7 @@ static int args_match(tree *a, param *p) {
         q = q->next;
       }
 
-      return args_match(left,p) && args_match(right,p->next);
+      return args_match(left,p) && args_match(right,q);
     }
 
     return 0;
@@ -99,14 +100,14 @@ static int eval_const_int(tree *n, int *out) {
     /* unwrap one-child nodes */
     if (n->nodeKind == FACTOR || n->nodeKind == TERM || n->nodeKind == ADDEXPR || n->nodeKind == EXPRESSION) {
         if (n->numChildren == 1) {
-            return eval_const_int(n->childeren[0], out);
+            return eval_const_int(n->children[0], out);
         }
 
         /* constant arithmetic with two operands */
         if (n->numChildren == 3) {
-            tree *left = n->childeren[0];
-            tree *op   = n->childeren[1];
-            tree *right= n->childeren[2];
+            tree *left = n->children[0];
+            tree *op   = n->children[1];
+            tree *right= n->children[2];
 
             int lv, rv;
             if (!eval_const_int(left, &lv) || !eval_const_int(right, &rv)) return 0;
@@ -155,6 +156,7 @@ static int eval_const_int(tree *n, int *out) {
 %token SEMICOLON COMMA
 %token LESSTHAN LESSTHANEQ GREATERTHAN GREATERTHANEQ EQ NEQ
 %token STRCONST CHARCONST ERROR ILLEGAL_TOK
+%token <value> CHARCONST
 %token OPER_AT OPER_INC OPER_DEC OPER_AND OPER_OR OPER_NOT
 
 /* TODO: Declare non-terminal symbols as of type node.
@@ -238,7 +240,7 @@ funDecl
           yyerror("multiply declared identifier");
           funID = -1;
         } else {
-          funID = ST_insert($2, $1->val, FUNCTION, current_scope);
+          funID = ST_insert($2, $1->val, FUNCTION, NULL);
         }
         current_fun_ind = funID;
         param_count = 0;
@@ -284,7 +286,7 @@ varDecl
           if (exists_in_current_scope($2)) {
             yyerror("multiply declared identifier");
           } else{
-          valID = ST_insert($2, $1->val, SCALAR, current_scope);
+          valID = ST_insert($2, $1->val, SCALAR, NULL);
           }
           $$ = maketree(VARDECL);
           /*symEntry *entry = ST_lookup($1);*/
@@ -297,7 +299,15 @@ varDecl
           if (exists_in_current_scope($2)) {
             yyerror("multiply declared identifier");
           } else {
-          valID = ST_insert($2,$1->val, ARRAY,current_scope);
+            valID = ST_insert($2,$1->val, ARRAY,NULL);
+            if(valID >= 0 && current_scope != NULL)
+            {
+              current_scope->strTable[valID]->size = $4;
+            }
+          if($4 == 0)
+          {
+            yyerror("Array variable declared with size of zero.");
+          }
           }
           $$ = maketree(VARDECL);
           addChild($$, $1);
@@ -337,7 +347,7 @@ formalDecl
         {
             yyerror("multiply declared identifier");
         } else {
-            valID = ST_insert($2, $1->val, SCALAR, current_scope);
+            valID = ST_insert($2, $1->val, SCALAR, NULL);
           add_param($1->val, SCALAR);
           param_count++;
         }
@@ -352,7 +362,7 @@ formalDecl
         {
             yyerror("multiply declared identifier");
         } else {
-            valID = ST_insert($2, $1->val, ARRAY, current_scope);
+            valID = ST_insert($2, $1->val, ARRAY, NULL);
           add_param($1->val, ARRAY);
           param_count++;
         }
@@ -684,6 +694,12 @@ factor
         $$->val = $2->val;
         addChild($$, $2);
       }
+    | CHARCONST
+    {
+      $$ = maketree(FACTOR);
+      $$->val = CHAR_TYPE;
+      addChild($$, maketreeWithVal(CHAR_NODE, $1));
+    }
     ;
 
 var
@@ -702,18 +718,18 @@ var
       symEntry *entry = ST_lookup($1);
       if (entry == NULL) {
           yyerror("undeclared identifier");
-      } else {
+      } else if(entry->symbol_type != ARRAY) {
+        yyerror("Non-array identifier used as an array.");
+      }
+      else {
           if ($3->val != INT_TYPE) {
-              yyerror("array indexing error");
+              yyerror("Array indexed using non-integer expression.");
           }
-
-          if (entry->symbol_type != ARRAY) {
-              yyerror("array indexing error");
-          } else {
+           else {
               int id;
-              if (eval_const_int($3, &id)) {
+              if (entry->size > 0 && eval_const_int($3, &id)) {
                   if (id < 0 || id >= entry->size) {
-                      yyerror("array indexing error");
+                      yyerror("Statically sized array indexed with constant, out-of-bounds expression.");
                   }
               }
           }
