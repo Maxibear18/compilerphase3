@@ -1,9 +1,3 @@
-Nonterminals useless in grammar
-
-    matchedStmt
-    unmatchedStmt
-
-
 Terminals unused in grammar
 
     STRCONST

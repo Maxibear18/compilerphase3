@@ -37,13 +37,96 @@ extern tree *ast;
   As long as the directory structure is correct and the file names are correct,
     we are okay with it.
   */
-static int global_scope_marker = 0;
-static int function_scope_markers[1024];
-static int function_scope_count = 0;
-static int *current_scope = &global_scope_marker;
 static int funID;
 static int param_count = 0;
 static int current_fun_ind = -1;
+static int exists_in_current_scope(const char *id) {
+    if (current_scope == NULL) return 0;
+
+    for (int i = 0; i < MAXIDS; i++) {
+        symEntry *entry = current_scope->strTable[i];
+        if (entry != NULL && strcmp(entry->id, id) == 0) {
+            return 1;
+        }
+    }
+    return 0;
+}
+static int count_args(tree *n) {
+    if (n == NULL) return 0;
+    if (n->nodeKind != ARGLIST) return 1;
+    if (n->numChildren == 1) return count_args(n->childeren[0]);
+    if (n->numChildren == 2) return count_args(n->childeren[0]) + count_args(n->childeren[1]);
+    return 0;
+}
+static int args_match(tree *a, param *p) {
+    if (a == NULL || p == NULL) return a == NULL && p == NULL;
+
+    if (a->nodeKind != ARGLIST) {
+        return a->val == p->data_type;
+    }
+
+    if (a->numChildren == 1) {
+        tree *expr = a->childeren[0];
+        return expr != NULL && expr->val == p->data_type;
+    }
+
+    if(a->numChildren == 2) {
+      tree *left = a->childeren[0];
+      tree *right = a->childeren[1];
+
+      int left_c = count_args(left);
+      param *q = p;
+
+      for(int i = 0; i < left_c; i++)
+      {
+        if(q == NULL) return 0;
+        q = q->next;
+      }
+
+      return args_match(left,p) && args_match(right,p->next);
+    }
+
+    return 0;
+}
+static int eval_const_int(tree *n, int *out) {
+    if (n == NULL) return 0;
+
+    if (n->nodeKind == INTEGER) {
+        *out = n->val;
+        return 1;
+    }
+
+    /* unwrap one-child nodes */
+    if (n->nodeKind == FACTOR || n->nodeKind == TERM || n->nodeKind == ADDEXPR || n->nodeKind == EXPRESSION) {
+        if (n->numChildren == 1) {
+            return eval_const_int(n->childeren[0], out);
+        }
+
+        /* constant arithmetic with two operands */
+        if (n->numChildren == 3) {
+            tree *left = n->childeren[0];
+            tree *op   = n->childeren[1];
+            tree *right= n->childeren[2];
+
+            int lv, rv;
+            if (!eval_const_int(left, &lv) || !eval_const_int(right, &rv)) return 0;
+
+            switch (op->val) {
+                case ADD: *out = lv + rv; return 1;
+                case SUB: *out = lv - rv; return 1;
+                case MUL: *out = lv * rv; return 1;
+                case DIV:
+                    if (rv == 0) return 0;
+                    *out = lv / rv;
+                    return 1;
+                default:
+                    return 0;
+            }
+        }
+    }
+
+    return 0;
+}
 %}
 
 /* the union describes the fields available in the yylval variable */
@@ -151,10 +234,15 @@ decl
 funDecl
     : typeSpec ID
       {
-        funID = ST_insert($2, $1->val, FUNCTION, current_scope);
+        if (exists_in_current_scope($2)) {
+          yyerror("multiply declared identifier");
+          funID = -1;
+        } else {
+          funID = ST_insert($2, $1->val, FUNCTION, current_scope);
+        }
         current_fun_ind = funID;
         param_count = 0;
-        current_scope = &function_scope_markers[function_scope_count++];
+        new_scope();
       }
       LPARENTHESIS formalDeclListOpt RPARENTHESIS funBody
       {
@@ -170,7 +258,7 @@ funDecl
         if ($7) addChild($$, $7);
 
         connect_params(current_fun_ind, param_count);
-        current_scope = &global_scope_marker;
+        up_scope();
       }
     ;
 
@@ -181,7 +269,7 @@ typeSpec
       }
     | CHAR
       {
-          $$ = maketreeWithVal(TYPESPEC, CHAR_NODE);
+          $$ = maketreeWithVal(TYPESPEC, CHAR_TYPE);
       }
     | VOID
       {
@@ -192,8 +280,12 @@ typeSpec
 varDecl
     : typeSpec ID SEMICOLON
       {
-          int valID = ST_insert($2, $1->val, SCALAR, current_scope);
-
+          int valID = -1;
+          if (exists_in_current_scope($2)) {
+            yyerror("multiply declared identifier");
+          } else{
+          valID = ST_insert($2, $1->val, SCALAR, current_scope);
+          }
           $$ = maketree(VARDECL);
           /*symEntry *entry = ST_lookup($1);*/
           addChild($$, $1);
@@ -201,8 +293,12 @@ varDecl
       }
     | typeSpec ID LBRACKET INTCONST RBRACKET SEMICOLON
       {
-          int valID = ST_insert($2,$1->val, ARRAY,current_scope);
-
+          int valID = -1;
+          if (exists_in_current_scope($2)) {
+            yyerror("multiply declared identifier");
+          } else {
+          valID = ST_insert($2,$1->val, ARRAY,current_scope);
+          }
           $$ = maketree(VARDECL);
           addChild($$, $1);
           addChild($$, maketreeWithVal(IDENTIFIER, valID));
@@ -236,15 +332,30 @@ formalDeclList:
 formalDecl
     : typeSpec ID
       {
-          int valID = ST_insert($2, $1->val, SCALAR, current_scope);
+        int valID = -1;
+        if(exists_in_current_scope($2))
+        {
+            yyerror("multiply declared identifier");
+        } else {
+            valID = ST_insert($2, $1->val, SCALAR, current_scope);
+          add_param($1->val, SCALAR);
+          param_count++;
+        }
           $$ = maketree(FORMALDECL);
           addChild($$, $1);
           addChild($$, maketreeWithVal(IDENTIFIER, valID));
       }
     | typeSpec ID LBRACKET RBRACKET
       {
-          int valID = ST_insert($2, $1->val, ARRAY, current_scope);
-
+        int valID = -1;
+          if(exists_in_current_scope($2))
+        {
+            yyerror("multiply declared identifier");
+        } else {
+            valID = ST_insert($2, $1->val, ARRAY, current_scope);
+          add_param($1->val, ARRAY);
+          param_count++;
+        }
           $$ = maketree(FORMALDECL);
           addChild($$, $1);
           addChild($$, maketreeWithVal(IDENTIFIER, valID));
@@ -401,6 +512,10 @@ compoundStmt
 
 assignStmt
     : var ASSIGN expression{
+      if($1->val != $3->val)
+      {
+        yyerror("type mismatch");
+      }
       $$ = maketree(ASSIGNSTMT);
       addChild($$, $1);
       addChild($$, $3);
@@ -450,13 +565,15 @@ expression
     : addExpr
       {
         $$ = maketree(EXPRESSION);
+        $$->val = $1->val;
         addChild($$, $1);
       }
     | addExpr relop addExpr
       {
         $$ = maketree(EXPRESSION);
-
+        $$->val = INT_TYPE;
         tree *leftExpr = maketree(EXPRESSION);
+        leftExpr->val = $1->val;
         addChild(leftExpr, $1);
         addChild($$, leftExpr);
         addChild($$, $2);
@@ -493,11 +610,13 @@ addExpr
     : term
       {
         $$ = maketree(ADDEXPR);
+        $$->val = $1->val;
         addChild($$, $1);
       }
     | addExpr addop term
       {
         $$ = maketree(ADDEXPR);
+        $$->val = $1->val;
         addChild($$, $1);
         addChild($$, $2);
         addChild($$, $3);
@@ -517,11 +636,13 @@ term
     : factor
       {
         $$ = maketree(TERM);
+        $$->val = $1->val;
         addChild($$, $1);
       }
     | term mulop factor
       {
         $$ = maketree(TERM);
+        $$->val = $1->val;
         addChild($$, $1);
         addChild($$, $2);
         addChild($$, $3);
@@ -542,21 +663,25 @@ factor
     : INTCONST
       {
         $$ = maketree(FACTOR);
+        $$->val = INT_TYPE;
         addChild($$, maketreeWithVal(INTEGER, $1));
       }
     | var
       {
         $$ = maketree(FACTOR);
+        $$->val = $1->val;
         addChild($$, $1);
       }
     | funCallExpr
       {
         $$ = maketree(FACTOR);
+        $$->val = $1->val;
         addChild($$, $1);
       }
     | LPARENTHESIS expression RPARENTHESIS
       {
         $$ = maketree(FACTOR);
+        $$->val = $2->val;
         addChild($$, $2);
       }
     ;
@@ -566,30 +691,54 @@ var
       {
           symEntry *entry = ST_lookup($1);
           if (entry == NULL) {
-            yywarning("undeclared symbol");
+            yyerror("undeclared identifier");
           }
           $$ = maketree(VAR);
+          $$->val = (entry != NULL) ? entry->data_type : -1;
           addChild($$, maketreeWithVal(IDENTIFIER, -1));
       }
     | ID LBRACKET expression RBRACKET
-      {
-          symEntry *entry = ST_lookup($1);
-          if (entry == NULL) {
-            yywarning("undeclared symbol");
+  {
+      symEntry *entry = ST_lookup($1);
+      if (entry == NULL) {
+          yyerror("undeclared identifier");
+      } else {
+          if ($3->val != INT_TYPE) {
+              yyerror("array indexing error");
           }
-          $$ = maketree(VAR);
-          addChild($$, maketreeWithVal(IDENTIFIER, -1));
-          addChild($$, $3);
-      };
+
+          if (entry->symbol_type != ARRAY) {
+              yyerror("array indexing error");
+          } else {
+              int id;
+              if (eval_const_int($3, &id)) {
+                  if (id < 0 || id >= entry->size) {
+                      yyerror("array indexing error");
+                  }
+              }
+          }
+      }
+
+      $$ = maketree(VAR);
+      $$->val = (entry != NULL) ? entry->data_type : -1;
+      addChild($$, maketreeWithVal(IDENTIFIER, -1));
+      addChild($$, $3);
+  };
 
 funCallExpr
             : ID LPARENTHESIS argListOpt RPARENTHESIS
 {
   symEntry *entry = ST_lookup($1);
           if (entry == NULL) {
-            yywarning("undeclared symbol");
+            yyerror("undeclared identifier");
+          } else if(entry->symbol_type != FUNCTION)
+          {
+            yyerror("function call mismatch");
+          } else if(count_args ($3) != entry->size || !args_match($3, entry->params)){
+            yyerror("function call mismatch");
           }
   $$ = maketree(FUNCCALLEXPR);
+  $$->val = (entry != NULL) ? entry->data_type : -1;
   addChild($$, maketreeWithVal(IDENTIFIER, -1));
   addChild($$, $3);
 };
