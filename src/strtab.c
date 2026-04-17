@@ -167,3 +167,21 @@ void add_param(int data_type, int symbol_type) {
       working_list_end = parameter;
    }
 }
+
+void connect_params(int index, int num_params) {
+   if (current_scope == NULL || current_scope->parent == NULL) {
+      return;
+   }
+
+   symEntry* func = current_scope->parent->strTable[index];
+
+   if (func == NULL) {
+      return;
+   }
+
+   func->params = working_list_head;
+   func->size = num_params;
+
+   working_list_head = NULL:
+   working_list_end = NULL:
+}
