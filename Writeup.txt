@@ -18,7 +18,7 @@ int main(){
     x = z + 1;
 }
 
-This test case shows two variable being used but undeclared, y and z, so the output should be 
+This test case shows two variables being used but undeclared, y and z, so the output should be: 
 error: line 3: Undeclared identifier.
 error: line 4: Undeclared identifier.
 Compilation finished
@@ -30,7 +30,7 @@ int a;
 int b;
 int a;
 
-Since the same variables are being declared multiple times the output should be something like this 
+Since the same variables are being declared multiple times, the output should be something like this: 
 error: line 3: Symbol declared multiple times.
 error: line 4: Symbol declared multiple times.
 error: line 5: Symbol declared multiple times.
@@ -40,5 +40,7 @@ How To Compile:
 compile by using 
 make clean; make
 
+Executable is named "mcc" and is stored in compilerphase3/obj/
 
-
+Example usage:
+./mcc ../test/cases/testArrayIndex.mC
