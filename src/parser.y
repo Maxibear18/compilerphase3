@@ -40,8 +40,8 @@ extern tree *ast;
 static int funID;
 static int param_count = 0;
 static int current_fun_ind = -1;
-static int in_fun_call_args = 0;
 extern table_node *current_scope;
+static int in_fun_call_args = 0;
 static int exists_in_current_scope(const char *id) {
     if (current_scope == NULL) return 0;
 
@@ -216,7 +216,7 @@ declList        : decl
                 ;
 
 /* TODO: This isn't the correct grammar for decl */
-decl
+decl            
                  : varDecl
                  {
                   $$ = maketree(DECL);
@@ -396,8 +396,8 @@ localDeclList
 : varDecl localDeclList
     {
         $$ = maketree(LOCALDECLLIST);
-        addChild($$, $1);
-        addChild($$, $2);
+        addChild($$, $1);  
+        addChild($$, $2);  
     }
     | varDecl
     {
