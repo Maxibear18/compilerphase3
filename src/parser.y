@@ -40,8 +40,8 @@ extern tree *ast;
 static int funID;
 static int param_count = 0;
 static int current_fun_ind = -1;
-static int in_fun_call_args = 0;
 extern table_node *current_scope;
+static int in_fun_call_args = 0;
 static int exists_in_current_scope(const char *id) {
     if (current_scope == NULL) return 0;
 
@@ -216,7 +216,7 @@ declList        : decl
                 ;
 
 /* TODO: This isn't the correct grammar for decl */
-decl
+decl            
                  : varDecl
                  {
                   $$ = maketree(DECL);
@@ -395,8 +395,8 @@ localDeclList
 : varDecl localDeclList
     {
         $$ = maketree(LOCALDECLLIST);
-        addChild($$, $1);
-        addChild($$, $2);
+        addChild($$, $1);  
+        addChild($$, $2);  
     }
     | varDecl
     {
@@ -708,7 +708,7 @@ var
       {
           symEntry *entry = ST_lookup($1);
           if (entry == NULL) {
-            if (!in_fun_call_args) yyerror("undeclared identifier");
+            if (!in_fun_call_args) yyerror("Undeclared variable");
           }
           $$ = maketree(VAR);
           $$->val = (entry != NULL) ? entry->data_type : -1;
@@ -718,7 +718,7 @@ var
   {
       symEntry *entry = ST_lookup($1);
       if (entry == NULL) {
-          if (!in_fun_call_args) yyerror("undeclared identifier");
+          if (!in_fun_call_args) yyerror("Undeclared variable");
       } else if(entry->symbol_type != ARRAY) {
         yyerror("Non-array identifier used as an array.");
       }
@@ -747,7 +747,7 @@ funCallExpr
 {
   symEntry *entry = ST_lookup($1);
   if (entry == NULL) {
-    yyerror("undeclared identifier");
+    yyerror("Undefined function");
   } else if (entry->symbol_type != FUNCTION) {
     yyerror("function call mismatch");
   } else {
