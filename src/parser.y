@@ -238,7 +238,7 @@ funDecl
     : typeSpec ID
       {
         if (exists_in_current_scope($2)) {
-          yyerror("multiply declared identifier");
+          yyerror("Symbol declared multiple times.");
           funID = -1;
         } else {
           funID = ST_insert($2, $1->val, FUNCTION, NULL);
@@ -259,9 +259,10 @@ funDecl
 
         if ($5) addChild($$, $5);
         if ($7) addChild($$, $7);
-
+        if(funID >= 0){
         connect_params(current_fun_ind, param_count);
         up_scope();
+        }
       }
     ;
 
@@ -285,7 +286,7 @@ varDecl
       {
           int valID = -1;
           if (exists_in_current_scope($2)) {
-            yyerror("multiply declared identifier");
+            yyerror("Symbol declared multiple times.");
           } else{
           valID = ST_insert($2, $1->val, SCALAR, NULL);
           }
@@ -523,9 +524,9 @@ compoundStmt
 
 assignStmt
     : var ASSIGN expression{
-      if($1->val != $3->val)
+      if($1->val != $3->val || $1->val == -1 || $3->val == -1)
       {
-        yyerror("type mismatch");
+        yyerror("Type mismatch in assignment.");
       }
       $$ = maketree(ASSIGNSTMT);
       addChild($$, $1);
@@ -627,10 +628,15 @@ addExpr
     | addExpr addop term
       {
         $$ = maketree(ADDEXPR);
-        $$->val = $1->val;
         addChild($$, $1);
         addChild($$, $2);
         addChild($$, $3);
+
+        if($1->val == $3->val &&($1->val == INT_TYPE ||$1->val == CHAR_TYPE)){
+          $$->val = $1->val;
+        } else{
+          $$->val = -1;
+        }
       }
     ;
 addop
@@ -653,10 +659,15 @@ term
     | term mulop factor
       {
         $$ = maketree(TERM);
-        $$->val = $1->val;
         addChild($$, $1);
         addChild($$, $2);
         addChild($$, $3);
+
+        if($1->val == $3->val &&($1->val == INT_TYPE || $1->val == CHAR_TYPE)){
+          $$->val = $1->val;
+        } else{
+          $$->val = -1;
+        }
       }
     ;
 
@@ -708,7 +719,7 @@ var
       {
           symEntry *entry = ST_lookup($1);
           if (entry == NULL) {
-            if (!in_fun_call_args) yyerror("undeclared identifier");
+            if (!in_fun_call_args) yyerror("Undeclared variable");
           }
           $$ = maketree(VAR);
           $$->val = (entry != NULL) ? entry->data_type : -1;
@@ -718,7 +729,7 @@ var
   {
       symEntry *entry = ST_lookup($1);
       if (entry == NULL) {
-          if (!in_fun_call_args) yyerror("undeclared identifier");
+          if (!in_fun_call_args) yyerror("Undeclared variable");
       } else if(entry->symbol_type != ARRAY) {
         yyerror("Non-array identifier used as an array.");
       }
@@ -747,7 +758,7 @@ funCallExpr
 {
   symEntry *entry = ST_lookup($1);
   if (entry == NULL) {
-    yyerror("undeclared identifier");
+    yyerror("Undefined function");
   } else if (entry->symbol_type != FUNCTION) {
     yyerror("function call mismatch");
   } else {
