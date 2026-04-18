@@ -40,6 +40,7 @@ extern tree *ast;
 static int funID;
 static int param_count = 0;
 static int current_fun_ind = -1;
+static int in_fun_call_args = 0;
 extern table_node *current_scope;
 static int exists_in_current_scope(const char *id) {
     if (current_scope == NULL) return 0;
@@ -190,10 +191,10 @@ static int eval_const_int(tree *n, int *out) {
     and their associated code for adding non-terminals to the AST.
   */
 
-program         : declList
+program         : { if (current_scope == NULL) new_scope(); } declList
                  {
                     tree *progNode = maketree(PROGRAM);
-                    addChild(progNode, $1);
+                    addChild(progNode, $2);
                     ast = progNode;
                     $$ = progNode;
                  }
@@ -215,7 +216,7 @@ declList        : decl
                 ;
 
 /* TODO: This isn't the correct grammar for decl */
-decl            
+decl
                  : varDecl
                  {
                   $$ = maketree(DECL);
@@ -394,8 +395,8 @@ localDeclList
 : varDecl localDeclList
     {
         $$ = maketree(LOCALDECLLIST);
-        addChild($$, $1);  
-        addChild($$, $2);  
+        addChild($$, $1);
+        addChild($$, $2);
     }
     | varDecl
     {
@@ -707,7 +708,7 @@ var
       {
           symEntry *entry = ST_lookup($1);
           if (entry == NULL) {
-            yyerror("undeclared identifier");
+            if (!in_fun_call_args) yyerror("undeclared identifier");
           }
           $$ = maketree(VAR);
           $$->val = (entry != NULL) ? entry->data_type : -1;
@@ -717,7 +718,7 @@ var
   {
       symEntry *entry = ST_lookup($1);
       if (entry == NULL) {
-          yyerror("undeclared identifier");
+          if (!in_fun_call_args) yyerror("undeclared identifier");
       } else if(entry->symbol_type != ARRAY) {
         yyerror("Non-array identifier used as an array.");
       }
@@ -742,21 +743,29 @@ var
   };
 
 funCallExpr
-            : ID LPARENTHESIS argListOpt RPARENTHESIS
+            : ID LPARENTHESIS { in_fun_call_args++; } argListOpt RPARENTHESIS
 {
   symEntry *entry = ST_lookup($1);
-          if (entry == NULL) {
-            yyerror("undeclared identifier");
-          } else if(entry->symbol_type != FUNCTION)
-          {
-            yyerror("function call mismatch");
-          } else if(count_args ($3) != entry->size || !args_match($3, entry->params)){
-            yyerror("function call mismatch");
-          }
+  if (entry == NULL) {
+    yyerror("undeclared identifier");
+  } else if (entry->symbol_type != FUNCTION) {
+    yyerror("function call mismatch");
+  } else {
+    int actual = count_args($4);
+    int expected = entry->size;
+    if (actual < expected) {
+      yyerror("Too few arguments provided in function call.");
+    } else if (actual > expected) {
+      yyerror("Too many arguments provided in function call.");
+    } else if (!args_match($4, entry->params)) {
+      yyerror("Argument type mismatch in function call.");
+    }
+  }
   $$ = maketree(FUNCCALLEXPR);
   $$->val = (entry != NULL) ? entry->data_type : -1;
   addChild($$, maketreeWithVal(IDENTIFIER, -1));
-  addChild($$, $3);
+  addChild($$, $4);
+  in_fun_call_args--;
 };
 
 argListOpt
